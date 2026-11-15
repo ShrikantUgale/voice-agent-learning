@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+  <body>
+    <h1>My first voice agent</h1>
+    <button id="start">Start</button>
+    <button id="stop" disabled>Stop</button>
+    <p id="status">Not connected</p>
+    <p>Current agent: <b id="current">-</b></p>
+
+    <script type="module">
+      import {
+        RealtimeAgent,
+        RealtimeSession,
+        tool,
+      } from "https://esm.sh/@openai/agents/realtime";
+      import { z } from "https://esm.sh/zod@3";
+
+      const startBtn = document.getElementById("start");
+      const stopBtn = document.getElementById("stop");
+      const status = document.getElementById("status");
+      const current = document.getElementById("current");
+      let session;
+
+      // Tool: only the Docs agent will get this
+      const searchDocs = tool({
+        name: "search_docs",
+        description:
+          "Search the company document for information to answer the user's question.",
+        parameters: z.object({ query: z.string() }),
+        async execute({ query }) {
+          console.log("Searching docs for:", query);
+          const res = await fetch("/search?q=" + encodeURIComponent(query));
+          return await res.json();
+        },
+      });
+
+      const docsAgent = new RealtimeAgent({
+        name: "DocsAgent",
+        handoffDescription: "Answers questions about the provided document.",
+        instructions: `You are the Docs specialist. Start by briefly saying you're the docs specialist.
+For every question, call search_docs first. Answer ONLY using the results.
+If the results don't contain the answer, say you don't know. Keep replies very short.`,
+        tools: [searchDocs],
+      });
+
+      const greeterAgent = new RealtimeAgent({
+        name: "GreeterAgent",
+        instructions: `You are a friendly greeter. Keep replies very short.
+You can chat casually. For any question about refunds, shipping, or support hours,
+hand off to the DocsAgent. Do not try to answer those yourself.`,
+        handoffs: [docsAgent],
+      });
+
+      startBtn.onclick = async () => {
+        status.textContent = "Connecting...";
+
+        const res = await fetch("/token");
+        const { key } = await res.json();
+
+        // The session starts with the FIRST agent
+        session = new RealtimeSession(greeterAgent, {
+          model: "gpt-realtime-2.1-mini",
+        });
+
+        // Fires whenever the conversation moves to another agent
+        session.on("agent_handoff", (context, fromAgent, toAgent) => {
+          console.log(`Handoff: ${fromAgent.name} -> ${toAgent.name}`);
+          current.textContent = toAgent.name;
+        });
+
+        await session.connect({ apiKey: key });
+
+        current.textContent = greeterAgent.name;
+        status.textContent = "Connected. Say hi!";
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+      };
+
+      stopBtn.onclick = () => {
+        session.close();
+        status.textContent = "Disconnected";
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      };
+    </script>
+  </body>
+</html>
