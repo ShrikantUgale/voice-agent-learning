@@ -8,6 +8,13 @@ const app = express();
 // Serves everything in /public (our index.html)
 app.use(express.static("public"));
 
+const orders = {
+  1001: { status: "Shipped", eta: "2 days", item: "Running shoes" },
+  1002: { status: "Processing", eta: "5 days", item: "Backpack" },
+  1003: { status: "Delivered", eta: "-", item: "Water bottle" },
+};
+const tickets = [];
+
 app.get("/search", async (req, res) => {
   res.json({ results: await searchDocs(String(req.query.q || "")) });
 });
@@ -39,6 +46,51 @@ const tools = {
     // What actually runs on your server
     run: async (args) => ({ results: await searchDocs(args.query) }),
   },
+
+  lookup_order: {
+    definition: {
+      type: "function",
+      name: "lookup_order",
+      description: "Look up the status of an order by its order number.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: {
+            type: "string",
+            description: "The order number, digits only",
+          },
+        },
+        required: ["order_id"],
+      },
+    },
+    run: async ({ order_id }) =>
+      orders[order_id] ?? { error: "No order found with that number" },
+  },
+
+  create_support_ticket: {
+    definition: {
+      type: "function",
+      name: "create_support_ticket",
+      description:
+        "Create a support ticket for a problem the help centre cannot solve. Only call after the user confirms.",
+      parameters: {
+        type: "object",
+        properties: {
+          summary: {
+            type: "string",
+            description: "One sentence describing the problem",
+          },
+        },
+        required: ["summary"],
+      },
+    },
+    run: async ({ summary }) => {
+      const ticket = { id: "T" + (tickets.length + 1), summary };
+      tickets.push(ticket);
+      console.log("🎫 ticket created:", ticket);
+      return { ticket_id: ticket.id };
+    },
+  },
 };
 
 async function runTool(name, args) {
@@ -63,9 +115,11 @@ app.post(
       JSON.stringify({
         type: "realtime",
         model: "gpt-realtime-2.1-mini",
-        instructions: `You are a voice assistant. For every question, call search_docs first.
-Answer ONLY using the results. If the results don't contain the answer, say you don't know.
-Keep replies very short.`,
+        instructions: `You are a voice assistant for ShopEasy. Keep replies very short.
+- For questions about policies (shipping, refunds, payments, account, support hours), call search_docs and answer ONLY from the results.
+- If the user gives an order number, call lookup_order.
+- If you cannot solve the problem, offer to create a support ticket, and call create_support_ticket only after the user says yes.
+- If you don't know, say so.`,
         tools: Object.values(tools).map((t) => t.definition),
         tool_choice: "auto",
       }),
@@ -122,6 +176,10 @@ function openSideband(callId) {
           let output;
           try {
             if (call.name === "search_docs") {
+              output = await runTool(call.name, args);
+            } else if (call.name === "lookup_order") {
+              output = await runTool(call.name, args);
+            } else if (call.name === "create_support_ticket") {
               output = await runTool(call.name, args);
             } else {
               output = { error: "Unknown tool" };
