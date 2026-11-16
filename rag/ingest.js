@@ -4,7 +4,7 @@ import pdf from "pdf-parse/lib/pdf-parse.js";
 import { qdrant, embed, COLLECTION } from "./rag.js";
 
 // 1. Extract text from the PDF
-const { text } = await pdf(fs.readFileSync("rag/my-data.pdf"));
+const { text } = await pdf(fs.readFileSync("rag/help-centre.pdf"));
 
 // 2. Chunk: fixed size with overlap so sentences aren't cut off from context
 function chunkText(text, size = 800, overlap = 50) {

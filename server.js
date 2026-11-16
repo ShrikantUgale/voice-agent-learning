@@ -22,6 +22,36 @@ async function searchDocs(query) {
   return result.points.map((p) => p.payload.text);
 }
 
+const tools = {
+  search_docs: {
+    // What the AI sees
+    definition: {
+      type: "function",
+      name: "search_docs",
+      description:
+        "Search the document for information to answer the user's question.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      },
+    },
+    // What actually runs on your server
+    run: async (args) => ({ results: await searchDocs(args.query) }),
+  },
+};
+
+async function runTool(name, args) {
+  const tool = tools[name];
+  if (!tool) return { error: `Unknown tool: ${name}` };
+
+  try {
+    return await tool.run(args);
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 app.post(
   "/session",
   express.text({ type: "application/sdp" }),
@@ -36,19 +66,7 @@ app.post(
         instructions: `You are a voice assistant. For every question, call search_docs first.
 Answer ONLY using the results. If the results don't contain the answer, say you don't know.
 Keep replies very short.`,
-        tools: [
-          {
-            type: "function",
-            name: "search_docs",
-            description:
-              "Search the document for information to answer the user's question.",
-            parameters: {
-              type: "object",
-              properties: { query: { type: "string" } },
-              required: ["query"],
-            },
-          },
-        ],
+        tools: Object.values(tools).map((t) => t.definition),
         tool_choice: "auto",
       }),
     );
@@ -104,7 +122,7 @@ function openSideband(callId) {
           let output;
           try {
             if (call.name === "search_docs") {
-              output = { results: await searchDocs(args.query) };
+              output = await runTool(call.name, args);
             } else {
               output = { error: "Unknown tool" };
             }
