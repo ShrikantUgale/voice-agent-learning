@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+  <body>
+    <h1>Sideband voice agent</h1>
+    <button id="start">Start</button>
+    <button id="stop" disabled>Stop</button>
+    <p id="status">Not connected</p>
+
+    <script>
+      const startBtn = document.getElementById("start");
+      const stopBtn = document.getElementById("stop");
+      const status = document.getElementById("status");
+      let pc;
+
+      startBtn.onclick = async () => {
+        status.textContent = "Connecting...";
+        pc = new RTCPeerConnection();
+
+        // Play the agent's voice
+        const audio = document.createElement("audio");
+        audio.autoplay = true;
+        pc.ontrack = (e) => (audio.srcObject = e.streams[0]);
+
+        // Send our microphone
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        pc.addTrack(mic.getTracks()[0], mic);
+
+        // Data channel for events (we'll use it later)
+        pc.createDataChannel("oai-events");
+
+        // Make an offer and send it to OUR server
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        const res = await fetch("/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/sdp" },
+          body: offer.sdp,
+        });
+
+        // OpenAI's answer, relayed by our server
+        await pc.setRemoteDescription({
+          type: "answer",
+          sdp: await res.text(),
+        });
+
+        status.textContent = "Connected. Say hi!";
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+      };
+
+      stopBtn.onclick = () => {
+        pc.close();
+        status.textContent = "Disconnected";
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      };
+    </script>
+  </body>
+</html>
