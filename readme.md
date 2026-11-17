@@ -35,11 +35,10 @@ Express server ─────────────────────�
 server.js            Express routes: /session, /session/:callId/ready, /approvals
 sideband.js          WebSocket event loop: greeting, tool execution, handoffs, approvals
 tool.js              Tool registry: definition (what the AI sees) + run (what executes)
-agents/agents.js     Agents = instructions + allowed tool names. Builds session config
+agents.js     Agents = instructions + allowed tool names. Builds session config
 approvals.js         Human-in-the-loop: pending approvals as Promises with a timeout
 rag.js               OpenAI embeddings + Qdrant client helpers
 ingest.js            One-off script: PDF -> chunks -> embeddings -> Qdrant
-docs/help-centre.pdf The knowledge base
 public/sideband.html The voice client (plain WebRTC, hardcoded user id "u1")
 public/admin.html    Approval page for support staff
 ```
