@@ -1,11 +1,24 @@
 import express from "express";
 import { START_AGENT, sessionConfigFor } from "./agents.js";
+import { listPending, decide } from "./approvals.js";
 import { openSideband } from "./sideband.js";
 
 const MODEL = "gpt-realtime-2.1-mini";
 
 const app = express();
 app.use(express.static("public"));
+
+app.get("/approvals", (req, res) => res.json(listPending()));
+
+app.post("/approvals/:id", express.json(), (req, res) => {
+  const { decision } = req.body;
+  if (!["approved", "rejected"].includes(decision)) {
+    return res
+      .status(400)
+      .json({ error: "decision must be approved or rejected" });
+  }
+  res.json({ ok: decide(req.params.id, decision) });
+});
 
 app.post(
   "/session",

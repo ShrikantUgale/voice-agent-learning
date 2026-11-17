@@ -1,6 +1,7 @@
 import WebSocket from "ws";
 import { agents, START_AGENT, sessionConfigFor } from "./agents.js";
-import { runTool } from "./tool.js";
+import { tools, runTool } from "./tool.js";
+import { requestApproval } from "./approvals.js";
 
 export function openSideband(callId, userId) {
   let currentAgent = START_AGENT;
@@ -13,9 +14,8 @@ export function openSideband(callId, userId) {
   );
   const send = (obj) => ws.send(JSON.stringify(obj));
 
-  // Handed to tools so a handoff tool can switch the agent
   const ctx = {
-    userId,
+    userId, // tools read the user from here, never from the model's arguments
     switchAgent(name) {
       console.log(`🔀 handoff: ${currentAgent} -> ${name}`);
       currentAgent = name;
@@ -23,7 +23,34 @@ export function openSideband(callId, userId) {
     },
   };
 
-  ws.on("open", () => console.log("[sideband] connected to", callId));
+  // Decides how one tool call is executed
+  async function execute(call, args) {
+    if (!agents[currentAgent].tools.includes(call.name)) {
+      return { error: `Tool not available: ${call.name}` };
+    }
+
+    if (tools[call.name]?.needsApproval) {
+      const decision = await requestApproval({ userId, tool: call.name, args });
+      if (decision === "rejected") {
+        return {
+          error:
+            "A human reviewer rejected this request. Tell the user politely.",
+        };
+      }
+      if (decision === "timed_out") {
+        return {
+          error:
+            "No reviewer responded in time. Tell the user to try again later.",
+        };
+      }
+    }
+
+    return runTool(call.name, args, ctx);
+  }
+
+  ws.on("open", () =>
+    console.log(`[sideband] connected to ${callId} (user ${userId})`),
+  );
 
   ws.on("message", async (raw) => {
     const event = JSON.parse(raw.toString());
@@ -46,11 +73,7 @@ export function openSideband(callId, userId) {
           const args = JSON.parse(call.arguments || "{}");
           console.log(`🔧 [${currentAgent}] tool call:`, call.name, args);
 
-          // Only allow tools that belong to the current agent
-          const allowed = agents[currentAgent].tools.includes(call.name);
-          const output = allowed
-            ? await runTool(call.name, args, ctx)
-            : { error: `Tool not available: ${call.name}` };
+          const output = await execute(call, args);
 
           send({
             type: "conversation.item.create",

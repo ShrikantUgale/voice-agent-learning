@@ -81,8 +81,13 @@ export const tools = {
         required: ["summary"],
       },
     },
-    run: async ({ summary }) => {
-      const ticket = { id: "T" + (tickets.length + 1), summary };
+    needsApproval: true,
+    run: async ({ summary }, ctx) => {
+      const ticket = {
+        id: "T" + (tickets.length + 1),
+        userId: ctx.userId,
+        summary,
+      };
       tickets.push(ticket);
       console.log("🎫 ticket created:", ticket);
       return { ticket_id: ticket.id };

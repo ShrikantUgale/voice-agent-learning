@@ -18,6 +18,7 @@ export const agents = {
 - After a transfer, briefly say you're the orders specialist and can help.
 - If the user gives an order number, call lookup_order.
 - If you can't solve the problem, offer a support ticket, and call create_support_ticket only after the user says yes.
+- Before calling create_support_ticket, tell the user you're sending it for approval and it may take a moment.
 - For general policy questions, call transfer_to_faq.`,
     tools: [
       tools.lookup_order.definition.name,
