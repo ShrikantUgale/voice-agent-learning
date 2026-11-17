@@ -2,7 +2,7 @@ import WebSocket from "ws";
 import { agents, START_AGENT, sessionConfigFor } from "./agents.js";
 import { runTool } from "./tool.js";
 
-export function openSideband(callId) {
+export function openSideband(callId, userId) {
   let currentAgent = START_AGENT;
 
   const ws = new WebSocket(
@@ -15,6 +15,7 @@ export function openSideband(callId) {
 
   // Handed to tools so a handoff tool can switch the agent
   const ctx = {
+    userId,
     switchAgent(name) {
       console.log(`🔀 handoff: ${currentAgent} -> ${name}`);
       currentAgent = name;

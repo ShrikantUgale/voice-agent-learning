@@ -11,6 +11,9 @@ app.post(
   "/session",
   express.text({ type: "application/sdp" }),
   async (req, res) => {
+    const userId = req.get("x-user-id");
+    if (!userId) return res.status(400).send("Missing x-user-id");
+
     const form = new FormData();
     form.append("sdp", req.body);
     form.append(
@@ -31,7 +34,7 @@ app.post(
     console.log("call_id:", callId);
 
     res.type("application/sdp").send(answer);
-    openSideband(callId);
+    openSideband(callId, userId);
   },
 );
 

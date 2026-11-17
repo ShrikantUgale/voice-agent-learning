@@ -34,7 +34,7 @@
 
         const res = await fetch("/session", {
           method: "POST",
-          headers: { "Content-Type": "application/sdp" },
+          headers: { "Content-Type": "application/sdp", "x-user-id": "u2" },
           body: offer.sdp,
         });
 

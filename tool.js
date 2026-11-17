@@ -13,9 +13,14 @@ async function searchDocs(query) {
 }
 
 const orders = {
-  1001: { status: "Shipped", eta: "2 days", item: "Running shoes" },
-  1002: { status: "Processing", eta: "5 days", item: "Backpack" },
-  1003: { status: "Delivered", eta: "-", item: "Water bottle" },
+  1001: {
+    userId: "u1",
+    status: "Shipped",
+    eta: "2 days",
+    item: "Running shoes",
+  },
+  1002: { userId: "u1", status: "Processing", eta: "5 days", item: "Backpack" },
+  1003: { userId: "u2", status: "Delivered", eta: "-", item: "Water bottle" },
 };
 const tickets = [];
 
@@ -50,8 +55,16 @@ export const tools = {
         required: ["order_id"],
       },
     },
-    run: async ({ order_id }) =>
-      orders[order_id] ?? { error: "No order found with that number" },
+    run: async ({ order_id }, ctx) => {
+      const order = orders[order_id];
+      // Same message whether the order doesn't exist or belongs to someone else,
+      // so the answer doesn't reveal which order numbers exist
+      if (!order || order.userId !== ctx.userId) {
+        return { error: "No order found with that number" };
+      }
+      const { userId, ...safe } = order; // don't send internal fields to the model
+      return safe;
+    },
   },
 
   create_support_ticket: {
