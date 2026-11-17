@@ -51,6 +51,8 @@
           sdp: await res.text(),
         });
 
+        setTimeout(() => stopBtn.click(), 40 * 1000); // Call would be auto ended after 40 seconds.
+
         status.textContent = "Connected. Say hi!";
         startBtn.disabled = true;
         stopBtn.disabled = false;
