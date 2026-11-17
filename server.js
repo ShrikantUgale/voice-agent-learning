@@ -1,7 +1,7 @@
 import express from "express";
 import { START_AGENT, sessionConfigFor } from "./agents.js";
 import { listPending, decide } from "./approvals.js";
-import { openSideband } from "./sideband.js";
+import { openSideband, markReady } from "./sideband.js";
 
 const MODEL = "gpt-realtime-2.1-mini";
 
@@ -9,6 +9,10 @@ const app = express();
 app.use(express.static("public"));
 
 app.get("/approvals", (req, res) => res.json(listPending()));
+
+app.post("/session/:callId/ready", (req, res) => {
+  res.json({ ok: markReady(req.params.callId) });
+});
 
 app.post("/approvals/:id", express.json(), (req, res) => {
   const { decision } = req.body;
@@ -46,6 +50,7 @@ app.post(
     const callId = r.headers.get("location")?.split("/").pop();
     console.log("call_id:", callId);
 
+    res.set("x-call-id", callId);
     res.type("application/sdp").send(answer);
     openSideband(callId, userId);
   },

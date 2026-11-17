@@ -3,6 +3,16 @@ import { agents, START_AGENT, sessionConfigFor } from "./agents.js";
 import { tools, runTool } from "./tool.js";
 import { requestApproval } from "./approvals.js";
 
+// callId -> handle, so the HTTP route can reach a running sideband
+const sessions = new Map();
+
+export function markReady(callId) {
+  const s = sessions.get(callId);
+  if (!s) return false;
+  s.markReady();
+  return true;
+}
+
 export function openSideband(callId, userId) {
   let currentAgent = START_AGENT;
 
@@ -13,6 +23,27 @@ export function openSideband(callId, userId) {
     },
   );
   const send = (obj) => ws.send(JSON.stringify(obj));
+  const state = { wsOpen: false, browserReady: false, greeted: false };
+
+  function maybeGreet() {
+    if (state.greeted || !state.wsOpen || !state.browserReady) return;
+    state.greeted = true;
+    console.log("👋 greeting the user");
+    send({
+      type: "response.create",
+      response: {
+        instructions:
+          "Greet the user in one short sentence as the ShopEasy assistant and ask how you can help.",
+      },
+    });
+  }
+
+  sessions.set(callId, {
+    markReady() {
+      state.browserReady = true;
+      maybeGreet();
+    },
+  });
 
   const ctx = {
     userId, // tools read the user from here, never from the model's arguments
@@ -48,9 +79,11 @@ export function openSideband(callId, userId) {
     return runTool(call.name, args, ctx);
   }
 
-  ws.on("open", () =>
-    console.log(`[sideband] connected to ${callId} (user ${userId})`),
-  );
+  ws.on("open", () => {
+    console.log(`[sideband] connected to ${callId} (user ${userId})`);
+    state.wsOpen = true;
+    maybeGreet();
+  });
 
   ws.on("message", async (raw) => {
     const event = JSON.parse(raw.toString());
@@ -96,5 +129,8 @@ export function openSideband(callId, userId) {
   });
 
   ws.on("error", (err) => console.log("[sideband] error:", err.message));
-  ws.on("close", () => console.log("[sideband] closed"));
+  ws.on("close", () => {
+    sessions.delete(callId);
+    console.log("[sideband] closed");
+  });
 }

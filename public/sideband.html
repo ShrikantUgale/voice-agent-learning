@@ -38,6 +38,13 @@
           body: offer.sdp,
         });
 
+        const callId = res.headers.get("x-call-id");
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "connected") {
+            fetch(`/session/${callId}/ready`, { method: "POST" });
+          }
+        };
+
         // OpenAI's answer, relayed by our server
         await pc.setRemoteDescription({
           type: "answer",
